@@ -35,7 +35,7 @@ func validateGlobalFlags(cmd *cobra.Command, args []string) {
 		"send", "register-validator", "edit-validator", "delegate", "undelegate",
 		"claim-rewards", "claim-validator-rewards", "query-validator", "query-delegation", "list-top-validators",
 		"increase-stake", "decrease-stake", "set-commission", "deregister", "exit",
-		"claim-unbonding-rewards",
+		"claim-unbonding-rewards", "transfer",
 	}
 	cmdName := cmd.Name()
 
@@ -147,6 +147,7 @@ func init() {
 
 	// Misc commands
 	miscCmd.AddCommand(
+		TransferCmd(),
 		SignRawTxCmd(),
 		SendSignedTxCmd(),
 	)

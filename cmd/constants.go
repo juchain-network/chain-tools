@@ -34,6 +34,7 @@ const (
 	CreateProposalFile       = "createProposal.json"
 	CreateConfigProposalFile = "createUpdateConfigProposal.json"
 	VoteProposalFile         = "voteProposal.json"
+	TransferFile             = "transfer.json"
 	WithdrawProfitsFile      = "withdrawProfits.json"
 )
 

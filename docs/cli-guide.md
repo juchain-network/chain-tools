@@ -242,6 +242,16 @@ You can also sign with a raw hex private key:
 ./build/cli misc sign -f data/createProposal.json -k <hex-private-key>
 ```
 
+Generate a native ETH transfer for the offline flow:
+
+```bash
+./build/cli misc transfer \
+  -f 0xFROM \
+  -t 0xTO \
+  -a 0.25 \
+  --rpc https://rpc.example
+```
+
 ## Online Send Workflow
 
 For write commands, add `--send` to sign and broadcast in one step without creating raw or signed JSON files.
@@ -271,6 +281,18 @@ Using a raw private key:
   --private-key <hex-private-key>
 ```
 
+Native ETH transfer:
+
+```bash
+./build/cli misc transfer \
+  -f 0xFROM \
+  -t 0xTO \
+  -a 0.25 \
+  --rpc https://rpc.example \
+  --send \
+  --private-key <hex-private-key>
+```
+
 `--wallet`, `--private-key`, and `--password` only apply when `--send` is enabled.
 
 ## Generated Output Files
@@ -280,6 +302,7 @@ Common write commands emit JSON files under `data/`, for example:
 - `data/createProposal.json`
 - `data/createUpdateConfigProposal.json`
 - `data/voteProposal.json`
+- `data/transfer.json`
 - `data/registerValidator.json`
 - `data/delegate.json`
 - `data/claimRewards.json`

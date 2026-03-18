@@ -179,6 +179,30 @@ func ParseConfigValue(raw string, cid int64) (*big.Int, error) {
 	return intValue, nil
 }
 
+// ParseTransferAmount parses a transfer amount expressed in ETH units.
+// Bare numeric values such as "0.5" are treated as ETH and converted to wei.
+func ParseTransferAmount(raw string) (*big.Int, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return nil, fmt.Errorf("transfer amount cannot be empty")
+	}
+
+	matches := numberUnitRegexp.FindStringSubmatch(strings.ToLower(value))
+	if matches == nil {
+		return nil, fmt.Errorf("invalid transfer amount format: %s", raw)
+	}
+
+	unit := matches[2]
+	switch unit {
+	case "":
+		return ParseConfigValue(value+" eth", 0)
+	case "eth", "ether", "ju":
+		return ParseConfigValue(value, 0)
+	default:
+		return nil, fmt.Errorf("transfer amount must use ETH units")
+	}
+}
+
 func parseHexOrAddressValue(raw string, cid int64) (*big.Int, error) {
 	hexStr := strings.TrimPrefix(raw, "0x")
 	if hexStr == "" {

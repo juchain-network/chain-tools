@@ -66,6 +66,12 @@ Broadcast the signed transaction:
 ./build/cli misc send -f data/createProposal_signed.json --rpc https://rpc.example
 ```
 
+Create a native ETH transfer transaction:
+
+```bash
+./build/cli misc transfer -f 0xFROM -t 0xTO -a 0.25 --rpc https://rpc.example
+```
+
 Send directly online with a private key:
 
 ```bash
@@ -73,6 +79,18 @@ Send directly online with a private key:
   -p 0xPROPOSER \
   -t 0xTARGET_VALIDATOR \
   -o add \
+  --rpc https://rpc.example \
+  --send \
+  --private-key <hex-private-key>
+```
+
+Send a native ETH transfer directly online:
+
+```bash
+./build/cli misc transfer \
+  -f 0xFROM \
+  -t 0xTO \
+  -a 0.25 \
   --rpc https://rpc.example \
   --send \
   --private-key <hex-private-key>

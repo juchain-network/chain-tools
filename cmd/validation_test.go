@@ -321,6 +321,7 @@ func TestWriteCommandsExposeOnlineSendFlags(t *testing.T) {
 		CreateProposalCmd(),
 		CreateConfigProposalCmd(),
 		VoteProposalCmd(),
+		TransferCmd(),
 		WithdrawProfitsCmd(),
 		EditValidatorCmd(),
 		RegisterValidatorCmd(),
@@ -411,6 +412,59 @@ func TestParseConfigValue(t *testing.T) {
 				assert.Error(t, err)
 				return
 			}
+			assert.NoError(t, err)
+			assert.Equal(t, 0, result.Cmp(tt.expected))
+		})
+	}
+}
+
+func TestParseTransferAmount(t *testing.T) {
+	tests := []struct {
+		name     string
+		rawValue string
+		expected *big.Int
+		wantErr  bool
+	}{
+		{
+			name:     "plain eth integer",
+			rawValue: "2",
+			expected: big.NewInt(2_000_000_000_000_000_000),
+		},
+		{
+			name:     "plain eth decimal",
+			rawValue: "0.25",
+			expected: big.NewInt(250_000_000_000_000_000),
+		},
+		{
+			name:     "explicit eth unit",
+			rawValue: "1.5 eth",
+			expected: big.NewInt(1_500_000_000_000_000_000),
+		},
+		{
+			name:     "unsupported unit",
+			rawValue: "100 gwei",
+			wantErr:  true,
+		},
+		{
+			name:     "too much precision",
+			rawValue: "0.1234567890123456789",
+			wantErr:  true,
+		},
+		{
+			name:     "empty value",
+			rawValue: "",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ParseTransferAmount(tt.rawValue)
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
 			assert.NoError(t, err)
 			assert.Equal(t, 0, result.Cmp(tt.expected))
 		})
