@@ -2,9 +2,12 @@ package cmd
 
 import (
 	"math/big"
+	"os"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -216,6 +219,129 @@ func TestGetConfigIDName(t *testing.T) {
 			result := GetConfigIDName(tt.configID)
 			assert.Equal(t, tt.expected, result)
 		})
+	}
+}
+
+func TestGetTxExecutionOptions(t *testing.T) {
+	tempDir := t.TempDir()
+	walletFile := tempDir + "/wallet.json"
+	passwordFile := tempDir + "/password.txt"
+	assert.NoError(t, os.WriteFile(walletFile, []byte("wallet"), 0644))
+	assert.NoError(t, os.WriteFile(passwordFile, []byte("password"), 0644))
+
+	tests := []struct {
+		name       string
+		send       bool
+		wallet     string
+		privateKey string
+		password   string
+		wantErr    bool
+	}{
+		{
+			name:    "offline without signer flags",
+			wantErr: false,
+		},
+		{
+			name:       "signer flags without send",
+			privateKey: "0x01",
+			wantErr:    true,
+		},
+		{
+			name:    "send without signer",
+			send:    true,
+			wantErr: true,
+		},
+		{
+			name:       "send with private key",
+			send:       true,
+			privateKey: "0xca881281fb10b53a87d00cbfae29f7cf8cfe8ac7c8389b3d20b24fc6bc3f3ff9",
+			wantErr:    false,
+		},
+		{
+			name:     "send with wallet and password",
+			send:     true,
+			wallet:   walletFile,
+			password: passwordFile,
+			wantErr:  false,
+		},
+		{
+			name:    "send with wallet without password",
+			send:    true,
+			wallet:  walletFile,
+			wantErr: true,
+		},
+		{
+			name:       "send with both signer sources",
+			send:       true,
+			wallet:     walletFile,
+			privateKey: "0xca881281fb10b53a87d00cbfae29f7cf8cfe8ac7c8389b3d20b24fc6bc3f3ff9",
+			password:   passwordFile,
+			wantErr:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := &cobra.Command{Use: "test"}
+			addOnlineSendFlags(cmd)
+			if tt.send {
+				assert.NoError(t, cmd.Flags().Set("send", "true"))
+			}
+			if tt.wallet != "" {
+				assert.NoError(t, cmd.Flags().Set("wallet", tt.wallet))
+			}
+			if tt.privateKey != "" {
+				assert.NoError(t, cmd.Flags().Set("private-key", tt.privateKey))
+			}
+			if tt.password != "" {
+				assert.NoError(t, cmd.Flags().Set("password", tt.password))
+			}
+
+			_, err := getTxExecutionOptions(cmd)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateSignerMatchesSender(t *testing.T) {
+	privateKey, err := crypto.HexToECDSA("ca881281fb10b53a87d00cbfae29f7cf8cfe8ac7c8389b3d20b24fc6bc3f3ff9")
+	assert.NoError(t, err)
+
+	expected := crypto.PubkeyToAddress(privateKey.PublicKey)
+	assert.NoError(t, validateSignerMatchesSender(privateKey, expected))
+	assert.Error(t, validateSignerMatchesSender(privateKey, common.HexToAddress("0x0000000000000000000000000000000000000001")))
+}
+
+func TestWriteCommandsExposeOnlineSendFlags(t *testing.T) {
+	commands := []*cobra.Command{
+		CreateProposalCmd(),
+		CreateConfigProposalCmd(),
+		VoteProposalCmd(),
+		WithdrawProfitsCmd(),
+		EditValidatorCmd(),
+		RegisterValidatorCmd(),
+		DelegateCmd(),
+		UndelegateCmd(),
+		ClaimRewardsCmd(),
+		ClaimValidatorRewardsCmd(),
+		IncreaseStakeCmd(),
+		DecreaseStakeCmd(),
+		SetCommissionCmd(),
+		DeregisterValidatorCmd(),
+		ValidatorExitCmd(),
+		WithdrawUnbondedCmd(),
+		UnjailValidatorCmd(),
+	}
+
+	for _, cmd := range commands {
+		assert.NotNil(t, cmd.Flags().Lookup("send"), cmd.CommandPath())
+		assert.NotNil(t, cmd.Flags().Lookup("wallet"), cmd.CommandPath())
+		assert.NotNil(t, cmd.Flags().Lookup("private-key"), cmd.CommandPath())
+		assert.NotNil(t, cmd.Flags().Lookup("password"), cmd.CommandPath())
 	}
 }
 

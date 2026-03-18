@@ -1,13 +1,13 @@
 # chain-tools
 
-`chain-tools` is the standalone repository for `ju-cli`, the JuChain chain management and governance command-line tool extracted from `chain-contract`.
+`chain-tools` is the standalone repository for `cli`, the JuChain chain management and governance command-line tool extracted from `chain-contract`.
 
 ## Scope
 
 - Governance proposals: create, vote, query, and inspect parameter values.
 - Validator operations: list validators, query details, edit metadata, and claim validator profits.
 - Staking operations: register validators, delegate, undelegate, claim rewards, manage stake, and exit flows.
-- Transaction workflow: generate unsigned transactions online, sign them offline, and broadcast signed payloads later.
+- Transaction workflow: either use the offline generate/sign/send flow or send directly online with `--send`.
 - Contract bindings: vendored Go bindings for the JuChain system contracts live under `contracts/`.
 
 ## Repository Layout
@@ -16,8 +16,7 @@
 chain-tools/
 ├── cmd/                  # Cobra commands and shared helpers
 ├── contracts/            # Generated Go bindings for system contracts
-├── docs/ju-cli-guide.md  # Usage guide
-├── run-tx.sh             # Local generate -> sign -> send helper script
+├── docs/cli-guide.md     # Usage guide
 ├── main.go               # CLI entrypoint
 └── Makefile              # Build/test helpers
 ```
@@ -28,7 +27,7 @@ Build the CLI:
 
 ```bash
 make build
-./build/ju-cli --help
+./build/cli --help
 ```
 
 Run tests:
@@ -40,7 +39,7 @@ make test
 Show version metadata:
 
 ```bash
-./build/ju-cli version
+./build/cli version
 ```
 
 ## Common Workflow
@@ -48,7 +47,7 @@ Show version metadata:
 Create an unsigned proposal transaction:
 
 ```bash
-./build/ju-cli proposal create \
+./build/cli proposal create \
   -p 0xPROPOSER \
   -t 0xTARGET_VALIDATOR \
   -o add \
@@ -58,27 +57,28 @@ Create an unsigned proposal transaction:
 Sign it offline:
 
 ```bash
-./build/ju-cli misc sign -f data/createProposal.json -w /path/to/keystore -p /path/to/password.txt
+./build/cli misc sign -f data/createProposal.json -w /path/to/keystore -p /path/to/password.txt
 ```
 
 Broadcast the signed transaction:
 
 ```bash
-./build/ju-cli misc send -f data/createProposal_signed.json --rpc https://rpc.example
+./build/cli misc send -f data/createProposal_signed.json --rpc https://rpc.example
 ```
 
-Or run the full local flow in one shot:
+Send directly online with a private key:
 
 ```bash
-./run-tx.sh proposal create \
+./build/cli proposal create \
   -p 0xPROPOSER \
   -t 0xTARGET_VALIDATOR \
   -o add \
   --rpc https://rpc.example \
-  -k <hex-private-key>
+  --send \
+  --private-key <hex-private-key>
 ```
 
-More examples are available in [docs/ju-cli-guide.md](docs/ju-cli-guide.md).
+More examples are available in [docs/cli-guide.md](docs/cli-guide.md).
 
 ## Notes
 

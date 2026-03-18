@@ -22,6 +22,7 @@ func CreateProposalCmd() *cobra.Command {
 		Run:   createProposalTx,
 	}
 	createProposalFlags(cmd)
+	addOnlineSendFlags(cmd)
 	return cmd
 }
 
@@ -63,15 +64,13 @@ func createProposalTx(cmd *cobra.Command, _ []string) {
 		PrintInfo("Creating proposal to remove validator")
 	}
 
-	if err := innerCreateProposal(proposer, target, flag, rpc); err != nil {
+	if err := innerCreateProposal(cmd, proposer, target, flag, rpc); err != nil {
 		PrintError("Failed to create proposal", err)
 		return
 	}
 }
 
-func innerCreateProposal(proposer, target string, flag bool, rpc string) error {
-	outputFile := GeneratedFilePath(CreateProposalFile)
-
+func innerCreateProposal(cmd *cobra.Command, proposer, target string, flag bool, rpc string) error {
 	proposalAbi, err := abi.JSON(strings.NewReader(contracts.ProposalABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse proposal ABI: %w", err)
@@ -82,13 +81,20 @@ func innerCreateProposal(proposer, target string, flag bool, rpc string) error {
 		return fmt.Errorf("failed to pack proposal data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(proposer), common.HexToAddress(ProposalContractAddr), nil, abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(proposer),
+		common.HexToAddress(ProposalContractAddr),
+		nil,
+		abiData,
+		rpc,
+		CreateProposalFile,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create raw transaction: %w", err)
+		return fmt.Errorf("failed to execute proposal transaction: %w", err)
 	}
 
-	PrintSuccess("Proposal transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Proposal transaction created successfully!")
 	return nil
 }
 
@@ -99,6 +105,7 @@ func CreateConfigProposalCmd() *cobra.Command {
 		Run:   createConfigProposalTx,
 	}
 	createConfigProposalFlags(cmd)
+	addOnlineSendFlags(cmd)
 	return cmd
 }
 
@@ -146,15 +153,13 @@ func createConfigProposalTx(cmd *cobra.Command, _ []string) {
 	PrintInfo(fmt.Sprintf("Creating config update proposal for %s (ID: %d) with value: %s",
 		GetConfigIDName(cid), cid, cvalue.String()))
 
-	if err := innerCreateConfigProposal(proposer, cid, cvalue, rpc); err != nil {
+	if err := innerCreateConfigProposal(cmd, proposer, cid, cvalue, rpc); err != nil {
 		PrintError("Failed to create config proposal", err)
 		return
 	}
 }
 
-func innerCreateConfigProposal(proposer string, cid int64, cvalue *big.Int, rpc string) error {
-	outputFile := GeneratedFilePath(CreateConfigProposalFile)
-
+func innerCreateConfigProposal(cmd *cobra.Command, proposer string, cid int64, cvalue *big.Int, rpc string) error {
 	proposalAbi, err := abi.JSON(strings.NewReader(contracts.ProposalABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse proposal ABI: %w", err)
@@ -165,13 +170,20 @@ func innerCreateConfigProposal(proposer string, cid int64, cvalue *big.Int, rpc 
 		return fmt.Errorf("failed to pack config proposal data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(proposer), common.HexToAddress(ProposalContractAddr), nil, abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(proposer),
+		common.HexToAddress(ProposalContractAddr),
+		nil,
+		abiData,
+		rpc,
+		CreateConfigProposalFile,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create raw transaction: %w", err)
+		return fmt.Errorf("failed to execute config proposal transaction: %w", err)
 	}
 
-	PrintSuccess("Config proposal transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Config proposal transaction created successfully!")
 	return nil
 }
 
@@ -182,6 +194,7 @@ func VoteProposalCmd() *cobra.Command {
 		Run:   voteProposalTx,
 	}
 	voteProposalCmdFlags(cmd)
+	addOnlineSendFlags(cmd)
 	return cmd
 }
 
@@ -221,15 +234,13 @@ func voteProposalTx(cmd *cobra.Command, _ []string) {
 	}
 	PrintInfo(fmt.Sprintf("Voting %s on proposal: %s", voteType, proposalId))
 
-	if err := innerVoteProposal(signer, proposalId, approve, rpc); err != nil {
+	if err := innerVoteProposal(cmd, signer, proposalId, approve, rpc); err != nil {
 		PrintError("Failed to vote on proposal", err)
 		return
 	}
 }
 
-func innerVoteProposal(signer, proposalId string, flag bool, rpc string) error {
-	outputFile := GeneratedFilePath(VoteProposalFile)
-
+func innerVoteProposal(cmd *cobra.Command, signer, proposalId string, flag bool, rpc string) error {
 	proposalAbi, err := abi.JSON(strings.NewReader(contracts.ProposalABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse proposal ABI: %w", err)
@@ -243,13 +254,20 @@ func innerVoteProposal(signer, proposalId string, flag bool, rpc string) error {
 		return fmt.Errorf("failed to pack vote proposal data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(signer), common.HexToAddress(ProposalContractAddr), nil, abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(signer),
+		common.HexToAddress(ProposalContractAddr),
+		nil,
+		abiData,
+		rpc,
+		VoteProposalFile,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create vote transaction: %w", err)
+		return fmt.Errorf("failed to execute vote transaction: %w", err)
 	}
 
-	PrintSuccess("Vote transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Vote transaction created successfully!")
 	return nil
 }
 

@@ -167,6 +167,7 @@ func WithdrawProfitsCmd() *cobra.Command {
 		Run:   validatorClaim,
 	}
 	validatorClaimFlags(cmd)
+	addOnlineSendFlags(cmd)
 	return cmd
 }
 
@@ -194,15 +195,13 @@ func validatorClaim(cmd *cobra.Command, _ []string) {
 	}
 
 	PrintInfo(fmt.Sprintf("Creating claim transaction: Caller=%s, Validator=%s", caller, validator))
-	if err := innerValidatorClaim(caller, validator, rpc); err != nil {
+	if err := innerValidatorClaim(cmd, caller, validator, rpc); err != nil {
 		PrintError("Failed to create claim transaction", err)
 		return
 	}
 }
 
-func innerValidatorClaim(caller string, validator string, rpc string) error {
-	outputFile := GeneratedFilePath(WithdrawProfitsFile)
-
+func innerValidatorClaim(cmd *cobra.Command, caller string, validator string, rpc string) error {
 	validatorAbi, err := abi.JSON(strings.NewReader(contracts.ValidatorsABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse validator ABI: %w", err)
@@ -213,13 +212,20 @@ func innerValidatorClaim(caller string, validator string, rpc string) error {
 		return fmt.Errorf("failed to pack withdrawProfits data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(caller), common.HexToAddress(ValidatorContractAddr), nil, abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(caller),
+		common.HexToAddress(ValidatorContractAddr),
+		nil,
+		abiData,
+		rpc,
+		WithdrawProfitsFile,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create withdraw transaction: %w", err)
+		return fmt.Errorf("failed to execute withdraw transaction: %w", err)
 	}
 
-	PrintSuccess("Withdraw profits transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Withdraw profits transaction created successfully!")
 	PrintWarning("Note: Withdrawal has minimum waiting period restrictions")
 	return nil
 }
@@ -243,6 +249,7 @@ func EditValidatorCmd() *cobra.Command {
 
 	_ = cmd.MarkFlagRequired("validator")
 	_ = cmd.MarkFlagRequired("fee-addr")
+	addOnlineSendFlags(cmd)
 
 	return cmd
 }
@@ -270,15 +277,13 @@ func createEditValidatorTx(cmd *cobra.Command, args []string) {
 
 	PrintInfo("Creating edit validator transaction")
 
-	if err := innerCreateEditValidatorTx(validatorAddr, feeAddr, moniker, identity, website, email, details, rpc); err != nil {
+	if err := innerCreateEditValidatorTx(cmd, validatorAddr, feeAddr, moniker, identity, website, email, details, rpc); err != nil {
 		PrintError("Failed to create edit validator transaction", err)
 		return
 	}
 }
 
-func innerCreateEditValidatorTx(validatorAddr, feeAddr, moniker, identity, website, email, details, rpc string) error {
-	outputFile := GeneratedFilePath(EditValidatorFile)
-
+func innerCreateEditValidatorTx(cmd *cobra.Command, validatorAddr, feeAddr, moniker, identity, website, email, details, rpc string) error {
 	// Parse Validators contract ABI
 	validatorsAbi, err := abi.JSON(strings.NewReader(contracts.ValidatorsABI))
 	if err != nil {
@@ -308,13 +313,20 @@ func innerCreateEditValidatorTx(validatorAddr, feeAddr, moniker, identity, websi
 		return fmt.Errorf("failed to pack createOrEditValidator data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(validatorAddr), common.HexToAddress(ValidatorContractAddr), big.NewInt(0), abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(validatorAddr),
+		common.HexToAddress(ValidatorContractAddr),
+		big.NewInt(0),
+		abiData,
+		rpc,
+		EditValidatorFile,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create raw transaction: %w", err)
+		return fmt.Errorf("failed to execute edit validator transaction: %w", err)
 	}
 
-	PrintSuccess("Edit validator transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Edit validator transaction created successfully!")
 	PrintInfo(fmt.Sprintf("Validator: %s", validatorAddr))
 	PrintInfo(fmt.Sprintf("Fee address: %s", feeAddr))
 	PrintInfo(fmt.Sprintf("Moniker: %s", moniker))

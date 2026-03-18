@@ -8,18 +8,18 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "ju-cli",
+	Use:   "cli",
 	Short: "JuChain blockchain governance command line tool",
-	Long: `JuChain CLI is a command line tool for JuChain blockchain governance.
+	Long: `cli is a command line tool for JuChain blockchain governance.
 It provides comprehensive functionality for validator management and proposal voting.
 
 Features:
 - Create and vote on validator addition/removal proposals
 - Create and vote on configuration update proposals  
 - Query validator information and manage rewards
-- Sign and broadcast transactions to the blockchain network
+- Generate transactions for offline signing or send them directly online
 
-Use "ju-cli [command] --help" for more information about a command.`,
+Use "cli [command] --help" for more information about a command.`,
 	PersistentPreRun: validateGlobalFlags,
 }
 
@@ -94,7 +94,7 @@ var (
 	miscCmd = &cobra.Command{
 		Use:   "misc",
 		Short: "Miscellaneous commands",
-		Long:  `Configuration, transaction signing, and other miscellaneous commands.`,
+		Long:  `Offline transaction signing, broadcast, and other miscellaneous commands.`,
 	}
 )
 
@@ -129,20 +129,20 @@ func init() {
 
 	// Staking commands - staking and delegation operations
 	stakingCmd.AddCommand(
-		RegisterValidatorCmd(),          // register validator staking
-		DelegateCmd(),                   // delegate to validator
-		UndelegateCmd(),                 // undelegate from validator
-		IncreaseStakeCmd(),              // increase validator stake
-		DecreaseStakeCmd(),              // decrease validator stake
-		SetCommissionCmd(),              // set validator commission rate
-		DeregisterValidatorCmd(),        // validator deregistration
-		ValidatorExitCmd(),              // validator complete exit
-		UnjailValidatorCmd(),            // unjail a validator
-		ClaimRewardsCmd(),               // claim staking rewards (delegators)
-		ClaimValidatorRewardsCmd(),      // claim validator rewards (validators)
-		WithdrawUnbondedCmd(),           // withdraw unbonded stakes
-		QueryDelegationCmd(),            // query delegation information
-		QueryAvailableUnbondedCmd(),     // query available unbonded amounts
+		RegisterValidatorCmd(),      // register validator staking
+		DelegateCmd(),               // delegate to validator
+		UndelegateCmd(),             // undelegate from validator
+		IncreaseStakeCmd(),          // increase validator stake
+		DecreaseStakeCmd(),          // decrease validator stake
+		SetCommissionCmd(),          // set validator commission rate
+		DeregisterValidatorCmd(),    // validator deregistration
+		ValidatorExitCmd(),          // validator complete exit
+		UnjailValidatorCmd(),        // unjail a validator
+		ClaimRewardsCmd(),           // claim staking rewards (delegators)
+		ClaimValidatorRewardsCmd(),  // claim validator rewards (validators)
+		WithdrawUnbondedCmd(),       // withdraw unbonded stakes
+		QueryDelegationCmd(),        // query delegation information
+		QueryAvailableUnbondedCmd(), // query available unbonded amounts
 	)
 
 	// Misc commands

@@ -3,7 +3,7 @@ GOCACHE ?= $(CURDIR)/.cache/go-build
 export GOCACHE
 
 # Project information
-PROJECT_NAME := ju-cli
+PROJECT_NAME := cli
 VERSION ?= 1.2.2
 BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")

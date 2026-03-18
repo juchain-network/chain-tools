@@ -23,6 +23,45 @@ import (
 	"juchain.org/chain/tools/contracts"
 )
 
+func buildUnsignedTx(client *ethclient.Client, caller, contract common.Address, value *big.Int, data []byte) (*types.Transaction, *big.Int, error) {
+	nonce, err := client.PendingNonceAt(context.Background(), caller)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get nonce: %v", err)
+	}
+
+	gasPrice, err := client.SuggestGasPrice(context.Background())
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to suggest gas price: %v", err)
+	}
+
+	chainID, err := client.ChainID(context.Background())
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get chain ID: %v", err)
+	}
+
+	msg := ethereum.CallMsg{
+		From:  caller,
+		To:    &contract,
+		Data:  data,
+		Value: value,
+	}
+	gasLimit, err := client.EstimateGas(context.Background(), msg)
+	if err != nil {
+		return nil, nil, fmt.Errorf("gas estimation failed: %v", err)
+	}
+	gasLimit = gasLimit * DefaultGasMultiplier / 100
+
+	tx := types.NewTransaction(
+		nonce,
+		contract,
+		value,
+		gasLimit,
+		gasPrice,
+		data,
+	)
+	return tx, chainID, nil
+}
+
 func CreateRawTx(
 	caller common.Address,
 	contract common.Address,
@@ -42,42 +81,10 @@ func CreateRawTx(
 	}
 	defer client.Close()
 
-	nonce, err := client.PendingNonceAt(context.Background(), caller)
+	tx, chainID, err := buildUnsignedTx(client, caller, contract, value, data)
 	if err != nil {
-		return fmt.Errorf("failed to get nonce: %v", err)
+		return err
 	}
-
-	gasPrice, err := client.SuggestGasPrice(context.Background())
-	if err != nil {
-		fmt.Println("SuggestGasPrice Err:", err)
-		return nil
-	}
-
-	chainID, err := client.ChainID(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to get chain ID: %v", err)
-	}
-
-	msg := ethereum.CallMsg{
-		From:  caller,
-		To:    &contract,
-		Data:  data,
-		Value: value,
-	}
-	gasLimit, err := client.EstimateGas(context.Background(), msg)
-	if err != nil {
-		return fmt.Errorf("gas estimation failed: %v", err)
-	}
-	gasLimit = gasLimit * DefaultGasMultiplier / 100
-
-	tx := types.NewTransaction(
-		nonce,
-		contract,
-		value,
-		gasLimit,
-		gasPrice,
-		data,
-	)
 
 	rawTx := map[string]interface{}{
 		"nonce":    tx.Nonce(),
@@ -166,12 +173,35 @@ func SignRawTx(
 	return os.WriteFile(outputFile, signedData, 0644)
 }
 
-func SendSignedTx(rpcURL string, signedTxFile string) (common.Hash, error) {
-	client, err := ethclient.Dial(rpcURL)
+func CreateAndSendTx(
+	caller common.Address,
+	contract common.Address,
+	value *big.Int,
+	data []byte,
+	rpc string,
+	privateKey *ecdsa.PrivateKey,
+) (common.Hash, error) {
+	client, err := ethclient.Dial(rpc)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to connect to RPC: %v", err)
 	}
 	defer client.Close()
+
+	tx, chainID, err := buildUnsignedTx(client, caller, contract, value, data)
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(chainID), privateKey)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to sign transaction: %v", err)
+	}
+
+	return sendSignedTxWithClient(client, signedTx)
+}
+
+func SendSignedTx(rpcURL string, signedTxFile string) (common.Hash, error) {
+	signedTxFile = ResolveExistingFile(signedTxFile)
 
 	// Read signed tx
 	data, err := os.ReadFile(signedTxFile)
@@ -184,14 +214,28 @@ func SendSignedTx(rpcURL string, signedTxFile string) (common.Hash, error) {
 		return common.Hash{}, fmt.Errorf("invalid signed tx: %v", err)
 	}
 
+	return SendSignedTxObject(rpcURL, &tx)
+}
+
+func SendSignedTxObject(rpcURL string, tx *types.Transaction) (common.Hash, error) {
+	client, err := ethclient.Dial(rpcURL)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to connect to RPC: %v", err)
+	}
+	defer client.Close()
+
+	return sendSignedTxWithClient(client, tx)
+}
+
+func sendSignedTxWithClient(client *ethclient.Client, tx *types.Transaction) (common.Hash, error) {
 	tx.ChainId()
 
-	sender, err := types.Sender(types.NewEIP155Signer(tx.ChainId()), &tx)
+	sender, err := types.Sender(types.NewEIP155Signer(tx.ChainId()), tx)
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("invalid signed tx: %v", err)
 	}
 	// Broadcast
-	err = client.SendTransaction(context.Background(), &tx)
+	err = client.SendTransaction(context.Background(), tx)
 	if err != nil {
 		fmt.Printf("send tx error %v\n", err)
 		return common.Hash{}, err

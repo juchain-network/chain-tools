@@ -27,6 +27,7 @@ func RegisterValidatorCmd() *cobra.Command {
 	_ = cmd.MarkFlagRequired("proposer")
 	_ = cmd.MarkFlagRequired("stake-amount")
 	_ = cmd.MarkFlagRequired("commission-rate")
+	addOnlineSendFlags(cmd)
 
 	return cmd
 }
@@ -47,6 +48,7 @@ func DelegateCmd() *cobra.Command {
 	_ = cmd.MarkFlagRequired("delegator")
 	_ = cmd.MarkFlagRequired("validator")
 	_ = cmd.MarkFlagRequired("amount")
+	addOnlineSendFlags(cmd)
 
 	return cmd
 }
@@ -67,6 +69,7 @@ func UndelegateCmd() *cobra.Command {
 	_ = cmd.MarkFlagRequired("delegator")
 	_ = cmd.MarkFlagRequired("validator")
 	_ = cmd.MarkFlagRequired("amount")
+	addOnlineSendFlags(cmd)
 
 	return cmd
 }
@@ -85,6 +88,7 @@ func ClaimRewardsCmd() *cobra.Command {
 
 	_ = cmd.MarkFlagRequired("claimer")
 	_ = cmd.MarkFlagRequired("validator")
+	addOnlineSendFlags(cmd)
 
 	return cmd
 }
@@ -101,6 +105,7 @@ func ClaimValidatorRewardsCmd() *cobra.Command {
 	cmd.Flags().StringP("validator", "v", "", "Validator address (required)")
 
 	_ = cmd.MarkFlagRequired("validator")
+	addOnlineSendFlags(cmd)
 
 	return cmd
 }
@@ -137,6 +142,7 @@ func IncreaseStakeCmd() *cobra.Command {
 
 	_ = cmd.MarkFlagRequired("validator")
 	_ = cmd.MarkFlagRequired("amount")
+	addOnlineSendFlags(cmd)
 
 	return cmd
 }
@@ -155,6 +161,7 @@ func DecreaseStakeCmd() *cobra.Command {
 
 	_ = cmd.MarkFlagRequired("validator")
 	_ = cmd.MarkFlagRequired("amount")
+	addOnlineSendFlags(cmd)
 
 	return cmd
 }
@@ -173,6 +180,7 @@ func SetCommissionCmd() *cobra.Command {
 
 	_ = cmd.MarkFlagRequired("validator")
 	_ = cmd.MarkFlagRequired("rate")
+	addOnlineSendFlags(cmd)
 
 	return cmd
 }
@@ -189,6 +197,7 @@ func DeregisterValidatorCmd() *cobra.Command {
 	cmd.Flags().StringP("validator", "v", "", "Validator address (required)")
 
 	_ = cmd.MarkFlagRequired("validator")
+	addOnlineSendFlags(cmd)
 
 	return cmd
 }
@@ -205,6 +214,7 @@ func ValidatorExitCmd() *cobra.Command {
 	cmd.Flags().StringP("validator", "v", "", "Validator address (required)")
 
 	_ = cmd.MarkFlagRequired("validator")
+	addOnlineSendFlags(cmd)
 
 	return cmd
 }
@@ -223,6 +233,7 @@ func WithdrawUnbondedCmd() *cobra.Command {
 
 	_ = cmd.MarkFlagRequired("claimer")
 	_ = cmd.MarkFlagRequired("validator")
+	addOnlineSendFlags(cmd)
 
 	return cmd
 }
@@ -239,6 +250,7 @@ func UnjailValidatorCmd() *cobra.Command {
 	cmd.Flags().StringP("validator", "v", "", "Validator address (required)")
 
 	_ = cmd.MarkFlagRequired("validator")
+	addOnlineSendFlags(cmd)
 
 	return cmd
 }
@@ -304,15 +316,13 @@ func createRegisterValidatorTx(cmd *cobra.Command, args []string) {
 
 	PrintInfo("Creating validator registration transaction")
 
-	if err := innerCreateRegisterValidatorTx(proposer, weiAmount, commissionRate, rpc); err != nil {
+	if err := innerCreateRegisterValidatorTx(cmd, proposer, weiAmount, commissionRate, rpc); err != nil {
 		PrintError("Failed to create register validator transaction", err)
 		return
 	}
 }
 
-func innerCreateRegisterValidatorTx(proposer string, stakeAmount, commissionRate *big.Int, rpc string) error {
-	outputFile := GeneratedFilePath(RegisterValidatorFile)
-
+func innerCreateRegisterValidatorTx(cmd *cobra.Command, proposer string, stakeAmount, commissionRate *big.Int, rpc string) error {
 	stakingAbi, err := abi.JSON(strings.NewReader(contracts.StakingABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse staking ABI: %w", err)
@@ -323,13 +333,20 @@ func innerCreateRegisterValidatorTx(proposer string, stakeAmount, commissionRate
 		return fmt.Errorf("failed to pack registerValidator data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(proposer), common.HexToAddress(StakingContractAddr), stakeAmount, abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(proposer),
+		common.HexToAddress(StakingContractAddr),
+		stakeAmount,
+		abiData,
+		rpc,
+		RegisterValidatorFile,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create raw transaction: %w", err)
+		return fmt.Errorf("failed to execute register validator transaction: %w", err)
 	}
 
-	PrintSuccess("Validator registration transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Validator registration transaction created successfully!")
 	PrintInfo(fmt.Sprintf("Stake amount: %s wei", stakeAmount.String()))
 	PrintInfo(fmt.Sprintf("Commission rate: %s basis points", commissionRate.String()))
 	return nil
@@ -364,15 +381,13 @@ func createDelegateTx(cmd *cobra.Command, args []string) {
 
 	PrintInfo("Creating delegation transaction")
 
-	if err := innerCreateDelegateTx(delegator, validatorStr, weiAmount, rpc); err != nil {
+	if err := innerCreateDelegateTx(cmd, delegator, validatorStr, weiAmount, rpc); err != nil {
 		PrintError("Failed to create delegate transaction", err)
 		return
 	}
 }
 
-func innerCreateDelegateTx(delegator, validator string, amount *big.Int, rpc string) error {
-	outputFile := GeneratedFilePath(DelegateFile)
-
+func innerCreateDelegateTx(cmd *cobra.Command, delegator, validator string, amount *big.Int, rpc string) error {
 	stakingAbi, err := abi.JSON(strings.NewReader(contracts.StakingABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse staking ABI: %w", err)
@@ -383,13 +398,20 @@ func innerCreateDelegateTx(delegator, validator string, amount *big.Int, rpc str
 		return fmt.Errorf("failed to pack delegate data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(delegator), common.HexToAddress(StakingContractAddr), amount, abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(delegator),
+		common.HexToAddress(StakingContractAddr),
+		amount,
+		abiData,
+		rpc,
+		DelegateFile,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create raw transaction: %w", err)
+		return fmt.Errorf("failed to execute delegate transaction: %w", err)
 	}
 
-	PrintSuccess("Delegation transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Delegation transaction created successfully!")
 	PrintInfo(fmt.Sprintf("Amount: %s wei", amount.String()))
 	PrintInfo(fmt.Sprintf("Validator: %s", validator))
 	return nil
@@ -424,15 +446,13 @@ func createUndelegateTx(cmd *cobra.Command, args []string) {
 
 	PrintInfo("Creating undelegation transaction")
 
-	if err := innerCreateUndelegateTx(delegator, validatorStr, weiAmount, rpc); err != nil {
+	if err := innerCreateUndelegateTx(cmd, delegator, validatorStr, weiAmount, rpc); err != nil {
 		PrintError("Failed to create undelegate transaction", err)
 		return
 	}
 }
 
-func innerCreateUndelegateTx(delegator, validator string, amount *big.Int, rpc string) error {
-	outputFile := GeneratedFilePath(UndelegateFile)
-
+func innerCreateUndelegateTx(cmd *cobra.Command, delegator, validator string, amount *big.Int, rpc string) error {
 	stakingAbi, err := abi.JSON(strings.NewReader(contracts.StakingABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse staking ABI: %w", err)
@@ -443,13 +463,20 @@ func innerCreateUndelegateTx(delegator, validator string, amount *big.Int, rpc s
 		return fmt.Errorf("failed to pack undelegate data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(delegator), common.HexToAddress(StakingContractAddr), big.NewInt(0), abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(delegator),
+		common.HexToAddress(StakingContractAddr),
+		big.NewInt(0),
+		abiData,
+		rpc,
+		UndelegateFile,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create raw transaction: %w", err)
+		return fmt.Errorf("failed to execute undelegate transaction: %w", err)
 	}
 
-	PrintSuccess("Undelegation transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Undelegation transaction created successfully!")
 	PrintInfo(fmt.Sprintf("Amount: %s wei", amount.String()))
 	PrintInfo(fmt.Sprintf("Validator: %s", validator))
 	PrintInfo("Unbonding period: 7 days")
@@ -474,7 +501,7 @@ func createClaimRewardsTx(cmd *cobra.Command, args []string) {
 
 	PrintInfo("Creating claim rewards transaction for delegator")
 
-	if err := innerCreateClaimRewardsTx(claimer, validatorStr, rpc); err != nil {
+	if err := innerCreateClaimRewardsTx(cmd, claimer, validatorStr, rpc); err != nil {
 		PrintError("Failed to create claim rewards transaction", err)
 		return
 	}
@@ -497,15 +524,13 @@ func createClaimValidatorRewardsTx(cmd *cobra.Command, args []string) {
 
 	PrintInfo("Creating claim validator rewards transaction")
 
-	if err := innerCreateClaimValidatorRewardsTx(validatorStr, rpc); err != nil {
+	if err := innerCreateClaimValidatorRewardsTx(cmd, validatorStr, rpc); err != nil {
 		PrintError("Failed to create claim validator rewards transaction", err)
 		return
 	}
 }
 
-func innerCreateClaimRewardsTx(claimer, validator string, rpc string) error {
-	outputFile := GeneratedFilePath(ClaimRewardsFile)
-
+func innerCreateClaimRewardsTx(cmd *cobra.Command, claimer, validator string, rpc string) error {
 	stakingAbi, err := abi.JSON(strings.NewReader(contracts.StakingABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse staking ABI: %w", err)
@@ -516,20 +541,25 @@ func innerCreateClaimRewardsTx(claimer, validator string, rpc string) error {
 		return fmt.Errorf("failed to pack claimRewards data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(claimer), common.HexToAddress(StakingContractAddr), big.NewInt(0), abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(claimer),
+		common.HexToAddress(StakingContractAddr),
+		big.NewInt(0),
+		abiData,
+		rpc,
+		ClaimRewardsFile,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create raw transaction: %w", err)
+		return fmt.Errorf("failed to execute claim rewards transaction: %w", err)
 	}
 
-	PrintSuccess("Claim rewards transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Claim rewards transaction created successfully!")
 	PrintInfo(fmt.Sprintf("Validator: %s", validator))
 	return nil
 }
 
-func innerCreateClaimValidatorRewardsTx(validator string, rpc string) error {
-	outputFile := GeneratedFilePath("claimValidatorRewards.json")
-
+func innerCreateClaimValidatorRewardsTx(cmd *cobra.Command, validator string, rpc string) error {
 	stakingAbi, err := abi.JSON(strings.NewReader(contracts.StakingABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse staking ABI: %w", err)
@@ -541,13 +571,20 @@ func innerCreateClaimValidatorRewardsTx(validator string, rpc string) error {
 		return fmt.Errorf("failed to pack claimValidatorRewards data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(validator), common.HexToAddress(StakingContractAddr), big.NewInt(0), abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(validator),
+		common.HexToAddress(StakingContractAddr),
+		big.NewInt(0),
+		abiData,
+		rpc,
+		"claimValidatorRewards.json",
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create raw transaction: %w", err)
+		return fmt.Errorf("failed to execute claim validator rewards transaction: %w", err)
 	}
 
-	PrintSuccess("Claim validator rewards transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Claim validator rewards transaction created successfully!")
 	PrintInfo(fmt.Sprintf("Validator: %s", validator))
 	return nil
 }
@@ -652,15 +689,13 @@ func createUnjailValidatorTx(cmd *cobra.Command, args []string) {
 
 	PrintInfo("Creating unjail validator transaction")
 
-	if err := innerCreateUnjailValidatorTx(validatorStr, rpc); err != nil {
+	if err := innerCreateUnjailValidatorTx(cmd, validatorStr, rpc); err != nil {
 		PrintError("Failed to create unjail validator transaction", err)
 		return
 	}
 }
 
-func innerCreateUnjailValidatorTx(validator string, rpc string) error {
-	outputFile := GeneratedFilePath(UnjailValidatorFile)
-
+func innerCreateUnjailValidatorTx(cmd *cobra.Command, validator string, rpc string) error {
 	stakingAbi, err := abi.JSON(strings.NewReader(contracts.StakingABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse staking ABI: %w", err)
@@ -671,13 +706,20 @@ func innerCreateUnjailValidatorTx(validator string, rpc string) error {
 		return fmt.Errorf("failed to pack unjailValidator data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(validator), common.HexToAddress(StakingContractAddr), big.NewInt(0), abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(validator),
+		common.HexToAddress(StakingContractAddr),
+		big.NewInt(0),
+		abiData,
+		rpc,
+		UnjailValidatorFile,
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create unjail validator transaction: %w", err)
+		return fmt.Errorf("failed to execute unjail validator transaction: %w", err)
 	}
 
-	PrintSuccess("Unjail validator transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Unjail validator transaction created successfully!")
 	PrintInfo(fmt.Sprintf("Validator: %s", validator))
 	PrintWarning("Note: Validator must have passed a proposal before unjailing")
 	return nil
@@ -711,15 +753,13 @@ func createIncreaseStakeTx(cmd *cobra.Command, args []string) {
 
 	PrintInfo("Creating increase stake transaction")
 
-	if err := innerCreateIncreaseStakeTx(validatorAddr, weiAmount, rpc); err != nil {
+	if err := innerCreateIncreaseStakeTx(cmd, validatorAddr, weiAmount, rpc); err != nil {
 		PrintError("Failed to create increase stake transaction", err)
 		return
 	}
 }
 
-func innerCreateIncreaseStakeTx(validatorAddr string, amount *big.Int, rpc string) error {
-	outputFile := GeneratedFilePath("increaseStake.json")
-
+func innerCreateIncreaseStakeTx(cmd *cobra.Command, validatorAddr string, amount *big.Int, rpc string) error {
 	stakingAbi, err := abi.JSON(strings.NewReader(contracts.StakingABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse staking ABI: %w", err)
@@ -731,13 +771,20 @@ func innerCreateIncreaseStakeTx(validatorAddr string, amount *big.Int, rpc strin
 		return fmt.Errorf("failed to pack addValidatorStake data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(validatorAddr), common.HexToAddress(StakingContractAddr), amount, abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(validatorAddr),
+		common.HexToAddress(StakingContractAddr),
+		amount,
+		abiData,
+		rpc,
+		"increaseStake.json",
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create increase stake transaction: %w", err)
+		return fmt.Errorf("failed to execute increase stake transaction: %w", err)
 	}
 
-	PrintSuccess("Increase stake transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Increase stake transaction created successfully!")
 	PrintInfo(fmt.Sprintf("Amount: %s wei", amount.String()))
 	PrintInfo(fmt.Sprintf("Validator: %s", validatorAddr))
 	return nil
@@ -771,15 +818,13 @@ func createDecreaseStakeTx(cmd *cobra.Command, args []string) {
 
 	PrintInfo("Creating decrease stake transaction")
 
-	if err := innerCreateDecreaseStakeTx(validatorAddr, weiAmount, rpc); err != nil {
+	if err := innerCreateDecreaseStakeTx(cmd, validatorAddr, weiAmount, rpc); err != nil {
 		PrintError("Failed to create decrease stake transaction", err)
 		return
 	}
 }
 
-func innerCreateDecreaseStakeTx(validatorAddr string, amount *big.Int, rpc string) error {
-	outputFile := GeneratedFilePath("decreaseStake.json")
-
+func innerCreateDecreaseStakeTx(cmd *cobra.Command, validatorAddr string, amount *big.Int, rpc string) error {
 	stakingAbi, err := abi.JSON(strings.NewReader(contracts.StakingABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse staking ABI: %w", err)
@@ -791,13 +836,20 @@ func innerCreateDecreaseStakeTx(validatorAddr string, amount *big.Int, rpc strin
 		return fmt.Errorf("failed to pack decreaseValidatorStake data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(validatorAddr), common.HexToAddress(StakingContractAddr), nil, abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(validatorAddr),
+		common.HexToAddress(StakingContractAddr),
+		nil,
+		abiData,
+		rpc,
+		"decreaseStake.json",
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create decrease validator stake transaction: %w", err)
+		return fmt.Errorf("failed to execute decrease validator stake transaction: %w", err)
 	}
 
-	PrintSuccess("Decrease validator stake transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Decrease validator stake transaction created successfully!")
 	PrintInfo(fmt.Sprintf("Amount: %s wei", amount.String()))
 	PrintInfo(fmt.Sprintf("Validator: %s", validatorAddr))
 	return nil
@@ -834,15 +886,13 @@ func createSetCommissionTx(cmd *cobra.Command, args []string) {
 
 	PrintInfo("Creating set commission rate transaction")
 
-	if err := innerCreateSetCommissionTx(validatorAddr, rate, rpc); err != nil {
+	if err := innerCreateSetCommissionTx(cmd, validatorAddr, rate, rpc); err != nil {
 		PrintError("Failed to create set commission transaction", err)
 		return
 	}
 }
 
-func innerCreateSetCommissionTx(validatorAddr string, rate *big.Int, rpc string) error {
-	outputFile := GeneratedFilePath("setCommission.json")
-
+func innerCreateSetCommissionTx(cmd *cobra.Command, validatorAddr string, rate *big.Int, rpc string) error {
 	stakingAbi, err := abi.JSON(strings.NewReader(contracts.StakingABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse staking ABI: %w", err)
@@ -853,13 +903,20 @@ func innerCreateSetCommissionTx(validatorAddr string, rate *big.Int, rpc string)
 		return fmt.Errorf("failed to pack updateCommissionRate data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(validatorAddr), common.HexToAddress(StakingContractAddr), big.NewInt(0), abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(validatorAddr),
+		common.HexToAddress(StakingContractAddr),
+		big.NewInt(0),
+		abiData,
+		rpc,
+		"setCommission.json",
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create set commission transaction: %w", err)
+		return fmt.Errorf("failed to execute set commission transaction: %w", err)
 	}
 
-	PrintSuccess("Set commission rate transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Set commission rate transaction created successfully!")
 	PrintInfo(fmt.Sprintf("Commission rate: %s basis points", rate.String()))
 	PrintInfo(fmt.Sprintf("Validator: %s", validatorAddr))
 	return nil
@@ -882,15 +939,13 @@ func createDeregisterValidatorTx(cmd *cobra.Command, args []string) {
 
 	PrintInfo("Creating deregister validator transaction")
 
-	if err := innerCreateDeregisterValidatorTx(validatorAddr, rpc); err != nil {
+	if err := innerCreateDeregisterValidatorTx(cmd, validatorAddr, rpc); err != nil {
 		PrintError("Failed to create deregister validator transaction", err)
 		return
 	}
 }
 
-func innerCreateDeregisterValidatorTx(validatorAddr string, rpc string) error {
-	outputFile := GeneratedFilePath("resignValidator.json")
-
+func innerCreateDeregisterValidatorTx(cmd *cobra.Command, validatorAddr string, rpc string) error {
 	stakingAbi, err := abi.JSON(strings.NewReader(contracts.StakingABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse staking ABI: %w", err)
@@ -901,13 +956,20 @@ func innerCreateDeregisterValidatorTx(validatorAddr string, rpc string) error {
 		return fmt.Errorf("failed to pack resignValidator data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(validatorAddr), common.HexToAddress(StakingContractAddr), big.NewInt(0), abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(validatorAddr),
+		common.HexToAddress(StakingContractAddr),
+		big.NewInt(0),
+		abiData,
+		rpc,
+		"resignValidator.json",
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create resign validator transaction: %w", err)
+		return fmt.Errorf("failed to execute resign validator transaction: %w", err)
 	}
 
-	PrintSuccess("Resign validator transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Resign validator transaction created successfully!")
 	PrintInfo(fmt.Sprintf("Validator: %s", validatorAddr))
 	return nil
 }
@@ -929,15 +991,13 @@ func createValidatorExitTx(cmd *cobra.Command, args []string) {
 
 	PrintInfo("Creating validator exit transaction")
 
-	if err := innerCreateValidatorExitTx(validatorAddr, rpc); err != nil {
+	if err := innerCreateValidatorExitTx(cmd, validatorAddr, rpc); err != nil {
 		PrintError("Failed to create validator exit transaction", err)
 		return
 	}
 }
 
-func innerCreateValidatorExitTx(validatorAddr string, rpc string) error {
-	outputFile := GeneratedFilePath("exitValidator.json")
-
+func innerCreateValidatorExitTx(cmd *cobra.Command, validatorAddr string, rpc string) error {
 	stakingAbi, err := abi.JSON(strings.NewReader(contracts.StakingABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse staking ABI: %w", err)
@@ -948,13 +1008,20 @@ func innerCreateValidatorExitTx(validatorAddr string, rpc string) error {
 		return fmt.Errorf("failed to pack exitValidator data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(validatorAddr), common.HexToAddress(StakingContractAddr), big.NewInt(0), abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(validatorAddr),
+		common.HexToAddress(StakingContractAddr),
+		big.NewInt(0),
+		abiData,
+		rpc,
+		"exitValidator.json",
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create validator exit transaction: %w", err)
+		return fmt.Errorf("failed to execute validator exit transaction: %w", err)
 	}
 
-	PrintSuccess("Validator exit transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Validator exit transaction created successfully!")
 	PrintInfo(fmt.Sprintf("Validator: %s", validatorAddr))
 	return nil
 }
@@ -977,15 +1044,13 @@ func createWithdrawUnbondedTx(cmd *cobra.Command, args []string) {
 
 	PrintInfo("Creating withdraw unbonded transaction")
 
-	if err := innerCreateWithdrawUnbondedTx(claimer, validatorStr, rpc); err != nil {
+	if err := innerCreateWithdrawUnbondedTx(cmd, claimer, validatorStr, rpc); err != nil {
 		PrintError("Failed to create withdraw unbonded transaction", err)
 		return
 	}
 }
 
-func innerCreateWithdrawUnbondedTx(claimer, validator string, rpc string) error {
-	outputFile := GeneratedFilePath("withdrawUnbonded.json")
-
+func innerCreateWithdrawUnbondedTx(cmd *cobra.Command, claimer, validator string, rpc string) error {
 	stakingAbi, err := abi.JSON(strings.NewReader(contracts.StakingABI))
 	if err != nil {
 		return fmt.Errorf("failed to parse staking ABI: %w", err)
@@ -996,13 +1061,20 @@ func innerCreateWithdrawUnbondedTx(claimer, validator string, rpc string) error 
 		return fmt.Errorf("failed to pack withdrawUnbonded data: %w", err)
 	}
 
-	err = CreateRawTx(common.HexToAddress(claimer), common.HexToAddress(StakingContractAddr), big.NewInt(0), abiData, rpc, outputFile)
+	result, err := executeTransaction(
+		cmd,
+		common.HexToAddress(claimer),
+		common.HexToAddress(StakingContractAddr),
+		big.NewInt(0),
+		abiData,
+		rpc,
+		"withdrawUnbonded.json",
+	)
 	if err != nil {
-		return fmt.Errorf("failed to create withdraw unbonded transaction: %w", err)
+		return fmt.Errorf("failed to execute withdraw unbonded transaction: %w", err)
 	}
 
-	PrintSuccess("Withdraw unbonded transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Transaction file: %s", outputFile))
+	printTxExecutionResult(result, "Withdraw unbonded transaction created successfully!")
 	PrintInfo(fmt.Sprintf("Validator: %s", validator))
 	return nil
 }

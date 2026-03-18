@@ -14,7 +14,7 @@ func TestCreaetProposalTx(t *testing.T) {
 	proposer := "0x016103822e9a3425DfeaFDCd57c9F7fC2bA72a8b"
 	target := "0x029DAB47e268575D4AC167De64052FB228B5fA41"
 	rpc := "https://testnet-rpc.juchain.org"
-	_ = innerCreateProposal(proposer, target, false, rpc)
+	_ = innerCreateProposal(nil, proposer, target, false, rpc)
 }
 
 func TestSignTx(t *testing.T) {

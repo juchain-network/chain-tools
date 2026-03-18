@@ -1,15 +1,15 @@
-# ju-cli Usage Guide
+# cli Usage Guide
 
 ## Overview
 
-`ju-cli` is the standalone JuChain governance and chain-management CLI extracted from `chain-contract`.
+`cli` is the standalone JuChain governance and chain-management CLI extracted from `chain-contract`.
 
 It covers four main areas:
 
 - Proposal management
 - Validator operations
 - Staking operations
-- Offline transaction signing and broadcast
+- Transaction execution through either offline files or direct online send
 
 ## Prerequisites
 
@@ -23,7 +23,7 @@ Build the binary:
 
 ```bash
 make build
-./build/ju-cli --help
+./build/cli --help
 ```
 
 Run tests:
@@ -35,13 +35,13 @@ make test
 Show build metadata:
 
 ```bash
-./build/ju-cli version
+./build/cli version
 ```
 
 ## Command Layout
 
 ```text
-ju-cli
+cli
 ├── proposal
 ├── validator
 ├── staking
@@ -52,7 +52,7 @@ ju-cli
 The global `--rpc` flag is required for online commands:
 
 ```bash
-./build/ju-cli proposal list --rpc https://rpc.example
+./build/cli proposal list --rpc https://rpc.example
 ```
 
 ## Proposal Management
@@ -60,7 +60,7 @@ The global `--rpc` flag is required for online commands:
 Create a validator proposal:
 
 ```bash
-./build/ju-cli proposal create \
+./build/cli proposal create \
   -p 0xPROPOSER \
   -t 0xTARGET_VALIDATOR \
   -o add \
@@ -70,7 +70,7 @@ Create a validator proposal:
 Create a configuration update proposal:
 
 ```bash
-./build/ju-cli proposal config \
+./build/cli proposal config \
   -p 0xPROPOSER \
   -i 0 \
   -v 86400 \
@@ -80,19 +80,31 @@ Create a configuration update proposal:
 Vote on a proposal:
 
 ```bash
-./build/ju-cli proposal vote \
+./build/cli proposal vote \
   -s 0xVALIDATOR \
   -i PROPOSAL_ID \
   -a \
   --rpc https://rpc.example
 ```
 
+Send a proposal directly online:
+
+```bash
+./build/cli proposal create \
+  -p 0xPROPOSER \
+  -t 0xTARGET_VALIDATOR \
+  -o add \
+  --rpc https://rpc.example \
+  --send \
+  --private-key <hex-private-key>
+```
+
 Query proposals:
 
 ```bash
-./build/ju-cli proposal query -i PROPOSAL_ID --rpc https://rpc.example
-./build/ju-cli proposal list --rpc https://rpc.example
-./build/ju-cli proposal param -c 0 --rpc https://rpc.example
+./build/cli proposal query -i PROPOSAL_ID --rpc https://rpc.example
+./build/cli proposal list --rpc https://rpc.example
+./build/cli proposal param -c 0 --rpc https://rpc.example
 ```
 
 Config IDs:
@@ -123,13 +135,13 @@ Config IDs:
 List validators:
 
 ```bash
-./build/ju-cli validator list --rpc https://rpc.example
+./build/cli validator list --rpc https://rpc.example
 ```
 
 Query a validator:
 
 ```bash
-./build/ju-cli validator query \
+./build/cli validator query \
   -a 0xVALIDATOR \
   --rpc https://rpc.example
 ```
@@ -137,7 +149,7 @@ Query a validator:
 Edit validator metadata:
 
 ```bash
-./build/ju-cli validator edit \
+./build/cli validator edit \
   -v 0xVALIDATOR \
   -f 0xFEE_ADDRESS \
   -m my-validator \
@@ -147,7 +159,7 @@ Edit validator metadata:
 Create a validator reward claim transaction:
 
 ```bash
-./build/ju-cli validator claim \
+./build/cli validator claim \
   -c 0xCALLER \
   -v 0xVALIDATOR \
   --rpc https://rpc.example
@@ -158,7 +170,7 @@ Create a validator reward claim transaction:
 Register a validator:
 
 ```bash
-./build/ju-cli staking validator-register \
+./build/cli staking validator-register \
   -p 0xVALIDATOR \
   -s 100000 \
   -c 500 \
@@ -168,13 +180,13 @@ Register a validator:
 Delegate and undelegate:
 
 ```bash
-./build/ju-cli staking delegate \
+./build/cli staking delegate \
   -d 0xDELEGATOR \
   -v 0xVALIDATOR \
   -s 1000 \
   --rpc https://rpc.example
 
-./build/ju-cli staking undelegate \
+./build/cli staking undelegate \
   -d 0xDELEGATOR \
   -v 0xVALIDATOR \
   -s 500 \
@@ -184,27 +196,27 @@ Delegate and undelegate:
 Claim rewards and query delegation state:
 
 ```bash
-./build/ju-cli staking claim-rewards -c 0xDELEGATOR -v 0xVALIDATOR --rpc https://rpc.example
-./build/ju-cli staking claim-validator-rewards -v 0xVALIDATOR --rpc https://rpc.example
-./build/ju-cli staking query-delegation -d 0xDELEGATOR -v 0xVALIDATOR --rpc https://rpc.example
-./build/ju-cli staking query-unbonded -d 0xDELEGATOR -v 0xVALIDATOR --rpc https://rpc.example
+./build/cli staking claim-rewards -c 0xDELEGATOR -v 0xVALIDATOR --rpc https://rpc.example
+./build/cli staking claim-validator-rewards -v 0xVALIDATOR --rpc https://rpc.example
+./build/cli staking query-delegation -d 0xDELEGATOR -v 0xVALIDATOR --rpc https://rpc.example
+./build/cli staking query-unbonded -d 0xDELEGATOR -v 0xVALIDATOR --rpc https://rpc.example
 ```
 
 Manage validator stake and lifecycle:
 
 ```bash
-./build/ju-cli staking stake-increase -v 0xVALIDATOR -s 1000 --rpc https://rpc.example
-./build/ju-cli staking stake-decrease -v 0xVALIDATOR -s 1000 --rpc https://rpc.example
-./build/ju-cli staking set-commission -v 0xVALIDATOR -r 500 --rpc https://rpc.example
-./build/ju-cli staking validator-deregister -v 0xVALIDATOR --rpc https://rpc.example
-./build/ju-cli staking validator-exit -v 0xVALIDATOR --rpc https://rpc.example
-./build/ju-cli staking validator-unjail -v 0xVALIDATOR --rpc https://rpc.example
-./build/ju-cli staking withdraw-unbonded -c 0xCLAIMER -v 0xVALIDATOR --rpc https://rpc.example
+./build/cli staking stake-increase -v 0xVALIDATOR -s 1000 --rpc https://rpc.example
+./build/cli staking stake-decrease -v 0xVALIDATOR -s 1000 --rpc https://rpc.example
+./build/cli staking set-commission -v 0xVALIDATOR -r 500 --rpc https://rpc.example
+./build/cli staking validator-deregister -v 0xVALIDATOR --rpc https://rpc.example
+./build/cli staking validator-exit -v 0xVALIDATOR --rpc https://rpc.example
+./build/cli staking validator-unjail -v 0xVALIDATOR --rpc https://rpc.example
+./build/cli staking withdraw-unbonded -c 0xCLAIMER -v 0xVALIDATOR --rpc https://rpc.example
 ```
 
 ## Offline Transaction Workflow
 
-`ju-cli` follows a three-stage flow for write operations:
+`cli` follows a three-stage flow for write operations:
 
 1. Generate an unsigned transaction online.
 2. Sign the JSON payload offline.
@@ -213,22 +225,53 @@ Manage validator stake and lifecycle:
 Example:
 
 ```bash
-./build/ju-cli proposal create \
+./build/cli proposal create \
   -p 0xPROPOSER \
   -t 0xTARGET_VALIDATOR \
   -o add \
   --rpc https://rpc.example
 
-./build/ju-cli misc sign -f data/createProposal.json -w /path/to/keystore -p /path/to/password.txt
+./build/cli misc sign -f data/createProposal.json -w /path/to/keystore -p /path/to/password.txt
 
-./build/ju-cli misc send -f data/createProposal_signed.json --rpc https://rpc.example
+./build/cli misc send -f data/createProposal_signed.json --rpc https://rpc.example
 ```
 
 You can also sign with a raw hex private key:
 
 ```bash
-./build/ju-cli misc sign -f data/createProposal.json -k <hex-private-key>
+./build/cli misc sign -f data/createProposal.json -k <hex-private-key>
 ```
+
+## Online Send Workflow
+
+For write commands, add `--send` to sign and broadcast in one step without creating raw or signed JSON files.
+
+Using a keystore wallet:
+
+```bash
+./build/cli proposal create \
+  -p 0xPROPOSER \
+  -t 0xTARGET_VALIDATOR \
+  -o add \
+  --rpc https://rpc.example \
+  --send \
+  --wallet /path/to/keystore \
+  --password /path/to/password.txt
+```
+
+Using a raw private key:
+
+```bash
+./build/cli staking delegate \
+  -d 0xDELEGATOR \
+  -v 0xVALIDATOR \
+  -s 1000 \
+  --rpc https://rpc.example \
+  --send \
+  --private-key <hex-private-key>
+```
+
+`--wallet`, `--private-key`, and `--password` only apply when `--send` is enabled.
 
 ## Generated Output Files
 
@@ -242,7 +285,7 @@ Common write commands emit JSON files under `data/`, for example:
 - `data/claimRewards.json`
 - `data/*_signed.json`
 
-The whole `data/` directory is ignored by Git in this repository.
+These files are created only for the offline flow. The whole `data/` directory is ignored by Git in this repository.
 
 ## Contract Binding Sync
 
@@ -253,6 +296,6 @@ If contract ABI changes land in `chain-contract`, regenerate the bindings there 
 ## More Help
 
 ```bash
-./build/ju-cli guide
-./build/ju-cli [command] --help
+./build/cli guide
+./build/cli [command] --help
 ```

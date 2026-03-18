@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/spf13/cobra"
 )
 
@@ -42,67 +41,23 @@ func signRawTx(cmd *cobra.Command, _ []string) {
 		return
 	}
 
-	// Check that either wallet or private-key is provided, but not both
-	walletProvided := wallet != ""
-	privateKeyProvided := privateKeyStr != ""
-
-	if !walletProvided && !privateKeyProvided {
-		PrintValidationError(fmt.Errorf("must provide either --wallet or --private-key"))
-		return
-	}
-
-	if walletProvided && privateKeyProvided {
-		PrintValidationError(fmt.Errorf("cannot provide both --wallet and --private-key"))
-		return
-	}
-
 	var privateKey *ecdsa.PrivateKey
 	var err error
+	signOpts := signerOptions{
+		Wallet:     wallet,
+		PrivateKey: privateKeyStr,
+		Password:   passwordFile,
+	}
+	privateKey, err = loadSignerPrivateKey(signOpts)
+	if err != nil {
+		PrintValidationError(err)
+		return
+	}
 
-	if walletProvided {
-		// Validate wallet file
-		if err := ValidateFile(wallet); err != nil {
-			PrintValidationError(err)
-			return
-		}
-
-		// Validate password file (required for wallet)
-		if passwordFile == "" {
-			PrintValidationError(fmt.Errorf("--password is required when using --wallet"))
-			return
-		}
-
-		if err := ValidateFile(passwordFile); err != nil {
-			PrintValidationError(err)
-			return
-		}
-
+	if wallet != "" {
 		PrintInfo(fmt.Sprintf("Signing transaction from file: %s using wallet: %s", file, wallet))
-
-		// Read password
-		password, err := fethchKeyFromFile(passwordFile)
-		if err != nil {
-			PrintError("Failed to read password file", err)
-			return
-		}
-
-		// Decrypt wallet file
-		privateKey, err = ReadKeystoreFile(wallet, password)
-		if err != nil {
-			PrintError("Failed to decrypt keystore file", err)
-			return
-		}
 	} else {
-		// Using private key string
 		PrintInfo(fmt.Sprintf("Signing transaction from file: %s using private key", file))
-
-		// Parse private key string
-		privateKeyStr = strings.TrimPrefix(privateKeyStr, "0x")
-		privateKey, err = crypto.HexToECDSA(privateKeyStr)
-		if err != nil {
-			PrintError("Failed to parse private key", err)
-			return
-		}
 	}
 
 	if err := innerSignRawTx(file, privateKey); err != nil {
