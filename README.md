@@ -36,6 +36,20 @@ Run tests:
 make test
 ```
 
+Sync generated contract clients from the latest `chain-contract` artifacts:
+
+```bash
+make sync-contract-clients
+```
+
+Optional overrides:
+
+```bash
+make sync-contract-clients CONTRACT_CLIENT_SOURCE_ROOT=../chain-contract
+make sync-contract-clients CONTRACT_CLIENT_BUILD=1
+make sync-contract-clients ABIGEN=../chain/build/bin/abigen
+```
+
 Show version metadata:
 
 ```bash

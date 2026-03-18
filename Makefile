@@ -1,5 +1,12 @@
 OUT := build
+SCRIPTS_DIR := scripts
+CONTRACT_CLIENT_SYNC := $(SCRIPTS_DIR)/sync_contract_clients.sh
 GOCACHE ?= $(CURDIR)/.cache/go-build
+CONTRACT_CLIENT_SOURCE_ROOT ?=
+CONTRACT_CLIENT_SOURCE_OUT ?=
+CONTRACT_CLIENT_TARGET_DIR ?= contracts
+CONTRACT_CLIENT_BUILD ?= 0
+ABIGEN ?=
 export GOCACHE
 
 # Project information
@@ -13,7 +20,7 @@ LDFLAGS := -X 'juchain.org/chain/tools/cmd.Version=$(VERSION)' \
            -X 'juchain.org/chain/tools/cmd.BuildDate=$(BUILD_DATE)' \
            -X 'juchain.org/chain/tools/cmd.GitCommit=$(GIT_COMMIT)'
 
-.PHONY: default build clean test lint fmt help
+.PHONY: default build clean test lint fmt help sync-contract-clients
 
 default: build
 
@@ -21,12 +28,27 @@ help: ## Show help information
 	@echo "$(PROJECT_NAME) Makefile Commands:"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Variables:"
+	@echo "  CONTRACT_CLIENT_SOURCE_ROOT=$(CONTRACT_CLIENT_SOURCE_ROOT)"
+	@echo "  CONTRACT_CLIENT_SOURCE_OUT=$(CONTRACT_CLIENT_SOURCE_OUT)"
+	@echo "  CONTRACT_CLIENT_TARGET_DIR=$(CONTRACT_CLIENT_TARGET_DIR)"
+	@echo "  CONTRACT_CLIENT_BUILD=$(CONTRACT_CLIENT_BUILD)"
+	@echo "  ABIGEN=$(ABIGEN)"
 
 build: ## Compile project
 	@echo "Building $(PROJECT_NAME) v$(VERSION)..."
 	@mkdir -p $(OUT) $(GOCACHE)
 	@go build -ldflags "$(LDFLAGS)" -o ${OUT}/$(PROJECT_NAME)
 	@echo "✅ Build completed: ${OUT}/$(PROJECT_NAME)"
+
+sync-contract-clients: ## Regenerate contracts/*.go from latest external contract artifacts
+	@CONTRACT_CLIENT_SOURCE_ROOT="$(CONTRACT_CLIENT_SOURCE_ROOT)" \
+		CONTRACT_CLIENT_SOURCE_OUT="$(CONTRACT_CLIENT_SOURCE_OUT)" \
+		CONTRACT_CLIENT_TARGET_DIR="$(CONTRACT_CLIENT_TARGET_DIR)" \
+		CONTRACT_CLIENT_BUILD="$(CONTRACT_CLIENT_BUILD)" \
+		ABIGEN="$(ABIGEN)" \
+		bash $(CONTRACT_CLIENT_SYNC)
 
 build_linux: ## Build Linux version
 	@echo "Building $(PROJECT_NAME) for Linux..."
