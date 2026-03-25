@@ -35,6 +35,11 @@ func listValidators(cmd *cobra.Command, _ []string) {
 		PrintError("Failed to get contract instance", err)
 		return
 	}
+	currentBlock, err := GetCurrentBlockNumber(rpc)
+	if err != nil {
+		PrintError("Failed to get current block number", err)
+		return
+	}
 
 	PrintInfo("Fetching validator information...")
 	vals, err := validatorInstance.GetHighestValidators(&bind.CallOpts{})
@@ -51,7 +56,7 @@ func listValidators(cmd *cobra.Command, _ []string) {
 	PrintInfo(fmt.Sprintf("Found %d validators:", len(vals)))
 	for i, val := range vals {
 		fmt.Printf("\n--- Validator %d ---\n", i+1)
-		queryOneInfo(val.Hex(), validatorInstance, stakingInstance)
+		queryOneInfo(val.Hex(), validatorInstance, stakingInstance, currentBlock)
 	}
 }
 
@@ -90,35 +95,59 @@ func queryValidator(cmd *cobra.Command, _ []string) {
 		PrintError("Failed to get contract instance", err)
 		return
 	}
+	currentBlock, err := GetCurrentBlockNumber(rpc)
+	if err != nil {
+		PrintError("Failed to get current block number", err)
+		return
+	}
 
 	PrintInfo(fmt.Sprintf("Querying validator information for: %s", addr))
-	queryOneInfo(addr, validatorInstance, stakingInstance)
+	queryOneInfo(addr, validatorInstance, stakingInstance, currentBlock)
 }
 
-func queryOneInfo(addr string, validatorInstance *contracts.Validators, stakingInstance *contracts.Staking) {
+func queryOneInfo(addr string, validatorInstance *contracts.Validators, stakingInstance *contracts.Staking, currentBlock uint64) {
+	validatorAddr := common.HexToAddress(addr)
+
 	// Get basic validator info
-	feeAddr, status, aacIncoming, totalJailedHB, lastWithdrawProfitsBlock, err := validatorInstance.GetValidatorInfo(&bind.CallOpts{}, common.HexToAddress(addr))
+	feeAddr, status, aacIncoming, totalJailedHB, lastWithdrawProfitsBlock, err := validatorInstance.GetValidatorInfo(&bind.CallOpts{}, validatorAddr)
 	if err != nil {
 		PrintError(fmt.Sprintf("Failed to get validator info for %s", addr), err)
 		return
 	}
 
 	// Get validator description
-	moniker, identity, website, email, details, err := validatorInstance.GetValidatorDescription(&bind.CallOpts{}, common.HexToAddress(addr))
+	moniker, identity, website, email, details, err := validatorInstance.GetValidatorDescription(&bind.CallOpts{}, validatorAddr)
 	if err != nil {
 		PrintError(fmt.Sprintf("Failed to get validator description for %s", addr), err)
 		return
 	}
+	effectiveSigner, err := validatorInstance.GetValidatorSigner(&bind.CallOpts{}, validatorAddr)
+	if err != nil {
+		PrintError(fmt.Sprintf("Failed to get effective signer for %s", addr), err)
+		return
+	}
+	pendingSigner, err := validatorInstance.GetPendingValidatorSigner(&bind.CallOpts{}, validatorAddr)
+	if err != nil {
+		PrintError(fmt.Sprintf("Failed to get pending signer for %s", addr), err)
+		return
+	}
 
 	// Get validator staking information
-	validatorInfo, err := stakingInstance.GetValidatorInfo(&bind.CallOpts{}, common.HexToAddress(addr))
+	validatorInfo, err := stakingInstance.GetValidatorInfo(&bind.CallOpts{}, validatorAddr)
 	if err != nil {
 		PrintError("Failed to get validator staking info", err)
 		return
 	}
+	futureEffective := isFutureEffective(currentBlock, pendingSigner.EffectiveBlock, pendingSigner.Pending)
 
-	fmt.Printf("Address: %s\n", addr)
+	fmt.Printf("Validator: %s\n", addr)
 	fmt.Printf("Fee Address: %s\n", feeAddr.Hex())
+	fmt.Printf("Effective Signer: %s\n", effectiveSigner.Hex())
+	fmt.Printf("Pending Signer: %s\n", pendingSigner.Signer.Hex())
+	fmt.Printf("Pending Effective Block: %s\n", pendingSigner.EffectiveBlock.String())
+	fmt.Printf("Pending Recorded: %t\n", pendingSigner.Pending)
+	fmt.Printf("Current Block: %d\n", currentBlock)
+	fmt.Printf("Future Effective: %t\n", futureEffective)
 	// Print friendly status label instead of raw number
 	fmt.Printf("Status: %s\n", formatValidatorStatus(uint64(status)))
 	fmt.Printf("Self Stake: %s\n", WeiToEther(validatorInfo.SelfStake))
@@ -241,6 +270,7 @@ func EditValidatorCmd() *cobra.Command {
 
 	cmd.Flags().StringP("validator", "v", "", "Validator address (required)")
 	cmd.Flags().StringP("fee-addr", "f", "", "Fee address for receiving rewards (required)")
+	cmd.Flags().String("signer", "", "Signer hot address to bind or rotate (optional)")
 	cmd.Flags().StringP("moniker", "m", "", "Validator display name")
 	cmd.Flags().StringP("identity", "i", "", "Validator identity (keybase signature)")
 	cmd.Flags().StringP("website", "w", "", "Validator website URL")
@@ -258,6 +288,7 @@ func createEditValidatorTx(cmd *cobra.Command, args []string) {
 	rpc := GetRPCEndpoint(cmd)
 	validatorAddr, _ := cmd.Flags().GetString("validator")
 	feeAddr, _ := cmd.Flags().GetString("fee-addr")
+	signerAddr, _ := cmd.Flags().GetString("signer")
 	moniker, _ := cmd.Flags().GetString("moniker")
 	identity, _ := cmd.Flags().GetString("identity")
 	website, _ := cmd.Flags().GetString("website")
@@ -274,43 +305,25 @@ func createEditValidatorTx(cmd *cobra.Command, args []string) {
 		PrintValidationError(err)
 		return
 	}
+	if signerAddr != "" {
+		if err := ValidateAddress(signerAddr); err != nil {
+			PrintValidationError(err)
+			return
+		}
+	}
 
 	PrintInfo("Creating edit validator transaction")
 
-	if err := innerCreateEditValidatorTx(cmd, validatorAddr, feeAddr, moniker, identity, website, email, details, rpc); err != nil {
+	if err := innerCreateEditValidatorTx(cmd, validatorAddr, feeAddr, signerAddr, moniker, identity, website, email, details, rpc); err != nil {
 		PrintError("Failed to create edit validator transaction", err)
 		return
 	}
 }
 
-func innerCreateEditValidatorTx(cmd *cobra.Command, validatorAddr, feeAddr, moniker, identity, website, email, details, rpc string) error {
-	// Parse Validators contract ABI
-	validatorsAbi, err := abi.JSON(strings.NewReader(contracts.ValidatorsABI))
+func innerCreateEditValidatorTx(cmd *cobra.Command, validatorAddr, feeAddr, signerAddr, moniker, identity, website, email, details, rpc string) error {
+	abiData, methodName, moniker, identity, website, email, details, err := packCreateOrEditValidatorData(feeAddr, signerAddr, moniker, identity, website, email, details)
 	if err != nil {
-		return fmt.Errorf("failed to parse validators ABI: %w", err)
-	}
-
-	// Use default values if not provided
-	if moniker == "" {
-		moniker = "validator"
-	}
-	if identity == "" {
-		identity = ""
-	}
-	if website == "" {
-		website = ""
-	}
-	if email == "" {
-		email = ""
-	}
-	if details == "" {
-		details = "Validator node"
-	}
-
-	abiData, err := validatorsAbi.Pack("createOrEditValidator",
-		common.HexToAddress(feeAddr), moniker, identity, website, email, details)
-	if err != nil {
-		return fmt.Errorf("failed to pack createOrEditValidator data: %w", err)
+		return err
 	}
 
 	result, err := executeTransaction(
@@ -327,8 +340,15 @@ func innerCreateEditValidatorTx(cmd *cobra.Command, validatorAddr, feeAddr, moni
 	}
 
 	printTxExecutionResult(result, "Edit validator transaction created successfully!")
-	PrintInfo(fmt.Sprintf("Validator: %s", validatorAddr))
+	PrintInfo(fmt.Sprintf("Validator cold address: %s", validatorAddr))
 	PrintInfo(fmt.Sprintf("Fee address: %s", feeAddr))
+	if signerAddr != "" {
+		PrintInfo(fmt.Sprintf("Signer hot address: %s", signerAddr))
+		PrintWarning("Signer rotation becomes runtime-effective after the scheduled checkpoint/epoch transition")
+	} else {
+		PrintInfo("Signer hot address: unchanged")
+	}
+	PrintInfo(fmt.Sprintf("ABI method: %s", methodName))
 	PrintInfo(fmt.Sprintf("Moniker: %s", moniker))
 	if identity != "" {
 		PrintInfo(fmt.Sprintf("Identity: %s", identity))
@@ -343,4 +363,61 @@ func innerCreateEditValidatorTx(cmd *cobra.Command, validatorAddr, feeAddr, moni
 		PrintInfo(fmt.Sprintf("Details: %s", details))
 	}
 	return nil
+}
+
+func packCreateOrEditValidatorData(feeAddr, signerAddr, moniker, identity, website, email, details string) ([]byte, string, string, string, string, string, string, error) {
+	validatorsAbi, err := abi.JSON(strings.NewReader(contracts.ValidatorsABI))
+	if err != nil {
+		return nil, "", "", "", "", "", "", fmt.Errorf("failed to parse validators ABI: %w", err)
+	}
+
+	moniker, identity, website, email, details = normalizeValidatorMetadata(moniker, identity, website, email, details)
+
+	if signerAddr != "" {
+		abiData, err := validatorsAbi.Pack(
+			"createOrEditValidator",
+			common.HexToAddress(feeAddr),
+			common.HexToAddress(signerAddr),
+			moniker,
+			identity,
+			website,
+			email,
+			details,
+		)
+		if err != nil {
+			return nil, "", "", "", "", "", "", fmt.Errorf("failed to pack createOrEditValidator signer overload: %w", err)
+		}
+		return abiData, "createOrEditValidator", moniker, identity, website, email, details, nil
+	}
+
+	abiData, err := validatorsAbi.Pack(
+		"createOrEditValidator0",
+		common.HexToAddress(feeAddr),
+		moniker,
+		identity,
+		website,
+		email,
+		details,
+	)
+	if err != nil {
+		return nil, "", "", "", "", "", "", fmt.Errorf("failed to pack createOrEditValidator fee-only overload: %w", err)
+	}
+	return abiData, "createOrEditValidator0", moniker, identity, website, email, details, nil
+}
+
+func normalizeValidatorMetadata(moniker, identity, website, email, details string) (string, string, string, string, string) {
+	if moniker == "" {
+		moniker = "validator"
+	}
+	if details == "" {
+		details = "Validator node"
+	}
+	return moniker, identity, website, email, details
+}
+
+func isFutureEffective(currentBlock uint64, effectiveBlock *big.Int, pending bool) bool {
+	if !pending || effectiveBlock == nil || !effectiveBlock.IsUint64() {
+		return false
+	}
+	return currentBlock < effectiveBlock.Uint64()
 }

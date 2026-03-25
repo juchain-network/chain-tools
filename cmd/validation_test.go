@@ -324,6 +324,7 @@ func TestWriteCommandsExposeOnlineSendFlags(t *testing.T) {
 		TransferCmd(),
 		WithdrawProfitsCmd(),
 		EditValidatorCmd(),
+		SubmitDoubleSignCmd(),
 		RegisterValidatorCmd(),
 		DelegateCmd(),
 		UndelegateCmd(),

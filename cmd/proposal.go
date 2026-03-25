@@ -27,9 +27,9 @@ func CreateProposalCmd() *cobra.Command {
 }
 
 func createProposalFlags(cmd *cobra.Command) {
-	cmd.Flags().StringP("proposer", "p", "", "Proposer address (must be a valid validator)")
+	cmd.Flags().StringP("proposer", "p", "", "Validator cold address that creates the proposal")
 	_ = cmd.MarkFlagRequired("proposer")
-	cmd.Flags().StringP("target", "t", "", "Target address (validator to add or remove)")
+	cmd.Flags().StringP("target", "t", "", "Target validator cold address to add or remove")
 	_ = cmd.MarkFlagRequired("target")
 	cmd.Flags().StringP("operation", "o", "", "Operation type: add|remove")
 	_ = cmd.MarkFlagRequired("operation")
@@ -110,7 +110,7 @@ func CreateConfigProposalCmd() *cobra.Command {
 }
 
 func createConfigProposalFlags(cmd *cobra.Command) {
-	cmd.Flags().StringP("proposer", "p", "", "Proposer address (must be a valid validator)")
+	cmd.Flags().StringP("proposer", "p", "", "Validator cold address that creates the config proposal")
 	_ = cmd.MarkFlagRequired("proposer")
 	cmd.Flags().Int64P("cid", "i", 0, "Config ID (0 proposalLastingPeriod, 1 punishThreshold, 2 removeThreshold, 3 decreaseRate, 4 withdrawProfitPeriod, 5 blockReward, 6 unbondingPeriod, 7 validatorUnjailPeriod, 8 minValidatorStake, 9 maxValidators, 10 minDelegation, 11 minUndelegation, 12 doubleSignSlashAmount, 13 doubleSignRewardAmount, 14 burnAddress, 15 doubleSignWindow, 16 commissionUpdateCooldown, 17 baseRewardRatio, 18 maxCommissionRate, 19 proposalCooldown)")
 	_ = cmd.MarkFlagRequired("cid")
@@ -199,8 +199,8 @@ func VoteProposalCmd() *cobra.Command {
 }
 
 func voteProposalCmdFlags(cmd *cobra.Command) {
-	cmd.Flags().StringP("signer", "s", "", "Signer address (must be a valid validator)")
-	_ = cmd.MarkFlagRequired("signer")
+	cmd.Flags().StringP("validator", "v", "", "Validator cold address that votes on the proposal")
+	_ = cmd.MarkFlagRequired("validator")
 	cmd.Flags().StringP("proposalId", "i", "", "Proposal ID (64-character hex string)")
 	_ = cmd.MarkFlagRequired("proposalId")
 	cmd.Flags().BoolP("approve", "a", false, "Approve this proposal (use -a for YES, omit for NO)")
@@ -208,7 +208,7 @@ func voteProposalCmdFlags(cmd *cobra.Command) {
 
 func voteProposalTx(cmd *cobra.Command, _ []string) {
 	rpc := GetRPCEndpoint(cmd) // Use config-aware function
-	signer, _ := cmd.Flags().GetString("signer")
+	validator, _ := cmd.Flags().GetString("validator")
 	proposalId, _ := cmd.Flags().GetString("proposalId")
 	approve, _ := cmd.Flags().GetBool("approve")
 
@@ -218,7 +218,7 @@ func voteProposalTx(cmd *cobra.Command, _ []string) {
 		return
 	}
 
-	if err := ValidateAddress(signer); err != nil {
+	if err := ValidateAddress(validator); err != nil {
 		PrintValidationError(err)
 		return
 	}
@@ -234,29 +234,21 @@ func voteProposalTx(cmd *cobra.Command, _ []string) {
 	}
 	PrintInfo(fmt.Sprintf("Voting %s on proposal: %s", voteType, proposalId))
 
-	if err := innerVoteProposal(cmd, signer, proposalId, approve, rpc); err != nil {
+	if err := innerVoteProposal(cmd, validator, proposalId, approve, rpc); err != nil {
 		PrintError("Failed to vote on proposal", err)
 		return
 	}
 }
 
-func innerVoteProposal(cmd *cobra.Command, signer, proposalId string, flag bool, rpc string) error {
-	proposalAbi, err := abi.JSON(strings.NewReader(contracts.ProposalABI))
+func innerVoteProposal(cmd *cobra.Command, validator, proposalId string, flag bool, rpc string) error {
+	abiData, err := packVoteProposalData(proposalId, flag)
 	if err != nil {
-		return fmt.Errorf("failed to parse proposal ABI: %w", err)
-	}
-
-	var proposalIdBytes [32]byte
-	copy(proposalIdBytes[:], common.HexToHash(proposalId).Bytes())
-
-	abiData, err := proposalAbi.Pack("voteProposal", proposalIdBytes, flag)
-	if err != nil {
-		return fmt.Errorf("failed to pack vote proposal data: %w", err)
+		return err
 	}
 
 	result, err := executeTransaction(
 		cmd,
-		common.HexToAddress(signer),
+		common.HexToAddress(validator),
 		common.HexToAddress(ProposalContractAddr),
 		nil,
 		abiData,
@@ -269,6 +261,22 @@ func innerVoteProposal(cmd *cobra.Command, signer, proposalId string, flag bool,
 
 	printTxExecutionResult(result, "Vote transaction created successfully!")
 	return nil
+}
+
+func packVoteProposalData(proposalId string, flag bool) ([]byte, error) {
+	proposalAbi, err := abi.JSON(strings.NewReader(contracts.ProposalABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse proposal ABI: %w", err)
+	}
+
+	var proposalIdBytes [32]byte
+	copy(proposalIdBytes[:], common.HexToHash(proposalId).Bytes())
+
+	abiData, err := proposalAbi.Pack("voteProposal", proposalIdBytes, flag)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pack vote proposal data: %w", err)
+	}
+	return abiData, nil
 }
 
 // QueryProposalCmd creates a command to query a specific proposal

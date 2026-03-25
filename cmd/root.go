@@ -9,14 +9,18 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "cli",
-	Short: "JuChain blockchain governance command line tool",
-	Long: `cli is a command line tool for JuChain blockchain governance.
-It provides comprehensive functionality for validator management and proposal voting.
+	Short: "JuChain chain management and governance CLI",
+	Long: `cli is a command line tool for JuChain chain management and governance.
+It supports the signer-separated validator model:
+- validator: cold address for governance and staking ownership
+- signer: hot address for block production
+- feeAddr: reward receiving address
 
 Features:
 - Create and vote on validator addition/removal proposals
-- Create and vote on configuration update proposals  
-- Query validator information and manage rewards
+- Create and vote on configuration update proposals
+- Query validator/signer state and manage rewards
+- Submit double-sign evidence
 - Generate transactions for offline signing or send them directly online
 
 Use "cli [command] --help" for more information about a command.`,
@@ -30,27 +34,53 @@ func validateGlobalFlags(cmd *cobra.Command, args []string) {
 	}
 
 	// Check if command requires RPC connection
-	requiresRPC := []string{
-		"list", "query", "create", "config", "vote", "withdraw_profits", "param",
-		"send", "register-validator", "edit-validator", "delegate", "undelegate",
-		"claim-rewards", "claim-validator-rewards", "query-validator", "query-delegation", "list-top-validators",
-		"increase-stake", "decrease-stake", "set-commission", "deregister", "exit",
-		"claim-unbonding-rewards", "transfer",
+	requiresRPC := map[string]struct{}{
+		"list":                    {},
+		"query":                   {},
+		"create":                  {},
+		"config":                  {},
+		"vote":                    {},
+		"param":                   {},
+		"send":                    {},
+		"transfer":                {},
+		"edit":                    {},
+		"claim":                   {},
+		"signer":                  {},
+		"by-signer":               {},
+		"signer-history":          {},
+		"pending-signer":          {},
+		"pending-by-signer":       {},
+		"active-signers":          {},
+		"top-signers":             {},
+		"epoch-signers":           {},
+		"reward-signers":          {},
+		"submit-double-sign":      {},
+		"validator-register":      {},
+		"delegate":                {},
+		"undelegate":              {},
+		"claim-rewards":           {},
+		"claim-validator-rewards": {},
+		"query-delegation":        {},
+		"query-unbonded":          {},
+		"stake-increase":          {},
+		"stake-decrease":          {},
+		"set-commission":          {},
+		"validator-deregister":    {},
+		"validator-exit":          {},
+		"validator-unjail":        {},
+		"withdraw-unbonded":       {},
 	}
 	cmdName := cmd.Name()
 
-	for _, name := range requiresRPC {
-		if cmdName == name {
-			rpc := GetRPCEndpoint(cmd) // Use config-aware function instead of flag only
-			if rpc == "" {
-				PrintValidationError(fmt.Errorf("RPC endpoint is required for command '%s'", cmdName))
-				os.Exit(1)
-			}
-			if err := ValidateRPCURL(rpc); err != nil {
-				PrintValidationError(err)
-				os.Exit(1)
-			}
-			break
+	if _, ok := requiresRPC[cmdName]; ok {
+		rpc := GetRPCEndpoint(cmd) // Use config-aware function instead of flag only
+		if rpc == "" {
+			PrintValidationError(fmt.Errorf("RPC endpoint is required for command '%s'", cmdName))
+			os.Exit(1)
+		}
+		if err := ValidateRPCURL(rpc); err != nil {
+			PrintValidationError(err)
+			os.Exit(1)
 		}
 	}
 }
@@ -80,7 +110,7 @@ var (
 	validatorCmd = &cobra.Command{
 		Use:   "validator",
 		Short: "Manage validators on the blockchain",
-		Long:  `List, register, edit, and query validators on the Juchain blockchain.`,
+		Long:  `List validators, inspect signer state, edit fee/signer metadata, and manage validator rewards.`,
 	}
 
 	// stakingCmd - For staking operations
@@ -88,6 +118,13 @@ var (
 		Use:   "staking",
 		Short: "Manage staking operations",
 		Long:  `Delegate, undelegate, and claim rewards from staking on the Juchain blockchain.`,
+	}
+
+	// punishCmd - For punishment and evidence submission
+	punishCmd = &cobra.Command{
+		Use:   "punish",
+		Short: "Manage punish and evidence operations",
+		Long:  `Submit punish-related evidence such as double-sign reports on the Juchain blockchain.`,
 	}
 
 	// miscCmd - For miscellaneous commands
@@ -121,8 +158,17 @@ func init() {
 
 	// Validator commands - validator management
 	validatorCmd.AddCommand(
-		ValidatorsCmd(),      // list validators
-		ValidatorCmd(),       // query validator info
+		ValidatorsCmd(), // list validators
+		ValidatorCmd(),  // query validator info
+		ValidatorSignerCmd(),
+		ValidatorBySignerCmd(),
+		ValidatorSignerHistoryCmd(),
+		ValidatorPendingSignerCmd(),
+		ValidatorPendingBySignerCmd(),
+		ValidatorActiveSignersCmd(),
+		ValidatorTopSignersCmd(),
+		ValidatorEpochSignersCmd(),
+		ValidatorRewardSignersCmd(),
 		EditValidatorCmd(),   // edit validator information
 		WithdrawProfitsCmd(), // withdraw validator profits
 	)
@@ -145,6 +191,10 @@ func init() {
 		QueryAvailableUnbondedCmd(), // query available unbonded amounts
 	)
 
+	punishCmd.AddCommand(
+		SubmitDoubleSignCmd(),
+	)
+
 	// Misc commands
 	miscCmd.AddCommand(
 		TransferCmd(),
@@ -157,6 +207,7 @@ func init() {
 		proposalCmd,
 		validatorCmd,
 		stakingCmd,
+		punishCmd,
 		miscCmd,
 	)
 }

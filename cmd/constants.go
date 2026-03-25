@@ -31,11 +31,12 @@ const (
 
 // Filename template constants - Generic operations
 const (
-	CreateProposalFile       = "createProposal.json"
-	CreateConfigProposalFile = "createUpdateConfigProposal.json"
-	VoteProposalFile         = "voteProposal.json"
-	TransferFile             = "transfer.json"
-	WithdrawProfitsFile      = "withdrawProfits.json"
+	CreateProposalFile           = "createProposal.json"
+	CreateConfigProposalFile     = "createUpdateConfigProposal.json"
+	VoteProposalFile             = "voteProposal.json"
+	SubmitDoubleSignEvidenceFile = "submitDoubleSignEvidence.json"
+	TransferFile                 = "transfer.json"
+	WithdrawProfitsFile          = "withdrawProfits.json"
 )
 
 // Filename template constants - Staking operations

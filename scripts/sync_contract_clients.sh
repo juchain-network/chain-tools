@@ -56,7 +56,7 @@ resolve_abigen() {
         return 0
     fi
 
-    die "abigen not found; set ABIGEN=/path/to/abigen"
+    echo ""
 }
 
 SOURCE_ROOT="$(resolve_source_root)"
@@ -64,8 +64,6 @@ SOURCE_OUT="$(to_abs_path "${CONTRACT_CLIENT_SOURCE_OUT:-$SOURCE_ROOT/out}")"
 TARGET_DIR="$(to_abs_path "${CONTRACT_CLIENT_TARGET_DIR:-$ROOT_DIR/contracts}")"
 ABIGEN_BIN="$(resolve_abigen "$SOURCE_ROOT")"
 CONTRACTS=(Validators Proposal Punish Staking)
-
-command -v jq >/dev/null 2>&1 || die "jq is required"
 
 if [[ "${CONTRACT_CLIENT_BUILD:-0}" == "1" ]]; then
     command -v forge >/dev/null 2>&1 || die "forge is required when CONTRACT_CLIENT_BUILD=1"
@@ -78,7 +76,6 @@ fi
 
 [[ -d "$SOURCE_ROOT" ]] || die "contract source root not found: $SOURCE_ROOT"
 [[ -d "$SOURCE_OUT" ]] || die "contract artifact directory not found: $SOURCE_OUT"
-[[ -x "$ABIGEN_BIN" ]] || die "abigen is not executable: $ABIGEN_BIN"
 
 mkdir -p "$TARGET_DIR"
 TMP_DIR="$(mktemp -d)"
@@ -87,29 +84,45 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 echo "==> Source root: $SOURCE_ROOT"
 echo "==> Artifact dir: $SOURCE_OUT"
 echo "==> Target dir: $TARGET_DIR"
-echo "==> Abigen: $ABIGEN_BIN"
+if [[ -n "$ABIGEN_BIN" ]]; then
+    [[ -x "$ABIGEN_BIN" ]] || die "abigen is not executable: $ABIGEN_BIN"
+    command -v jq >/dev/null 2>&1 || die "jq is required when using abigen"
+    echo "==> Abigen: $ABIGEN_BIN"
+else
+    echo "==> Abigen: not found, using local Go binding generator"
+fi
 
 for contract in "${CONTRACTS[@]}"; do
     artifact="$SOURCE_OUT/${contract}.sol/${contract}.json"
-    abi_file="$TMP_DIR/${contract}.abi"
-    bin_file="$TMP_DIR/${contract}.bin"
     out_file="$TARGET_DIR/${contract,,}.go"
 
     [[ -f "$artifact" ]] || die "missing artifact: $artifact"
 
-    jq '.abi' "$artifact" > "$abi_file"
-    jq -r '(.bytecode.object // .bytecode // "") | if type == "string" then . else "" end' "$artifact" > "$bin_file"
-
-    [[ -s "$abi_file" ]] || die "empty ABI extracted from: $artifact"
-    [[ -s "$bin_file" ]] || die "empty bytecode extracted from: $artifact"
-
     echo "==> Generating $out_file"
-    "$ABIGEN_BIN" \
-        --abi="$abi_file" \
-        --bin="$bin_file" \
-        --pkg=contracts \
-        --type="$contract" \
-        --out="$out_file"
+    if [[ -n "$ABIGEN_BIN" ]]; then
+        abi_file="$TMP_DIR/${contract}.abi"
+        bin_file="$TMP_DIR/${contract}.bin"
+
+        jq '.abi' "$artifact" > "$abi_file"
+        jq -r '(.bytecode.object // .bytecode // "") | if type == "string" then . else "" end' "$artifact" > "$bin_file"
+
+        [[ -s "$abi_file" ]] || die "empty ABI extracted from: $artifact"
+        [[ -s "$bin_file" ]] || die "empty bytecode extracted from: $artifact"
+
+        "$ABIGEN_BIN" \
+            --abi="$abi_file" \
+            --bin="$bin_file" \
+            --pkg=contracts \
+            --type="$contract" \
+            --out="$out_file"
+    else
+        GOCACHE="${GOCACHE:-$ROOT_DIR/.cache/go-build}" \
+            go run "$ROOT_DIR/scripts/generate_bindings.go" \
+            --artifact="$artifact" \
+            --pkg=contracts \
+            --type="$contract" \
+            --out="$out_file"
+    fi
 done
 
 gofmt -w "$TARGET_DIR"/*.go

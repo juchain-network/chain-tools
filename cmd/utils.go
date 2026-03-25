@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"math/big"
 	"os"
@@ -368,13 +369,28 @@ func WeiToEther(wei *big.Int) string {
 	return eth.Text('f', 18)
 }
 
+func GetCurrentBlockNumber(rpc string) (uint64, error) {
+	client, err := ethclient.Dial(rpc)
+	if err != nil {
+		PrintError("Failed to connect to RPC endpoint", err)
+		return 0, err
+	}
+	defer client.Close()
+
+	blockNumber, err := client.BlockNumber(context.Background())
+	if err != nil {
+		PrintError("Failed to query current block number", err)
+		return 0, err
+	}
+	return blockNumber, nil
+}
+
 func GetContractInstance(rpc string) (*contracts.Validators, *contracts.Staking, *contracts.Proposal, error) {
 	client, err := ethclient.Dial(rpc)
 	if err != nil {
 		PrintError("Failed to connect to RPC endpoint", err)
 		return nil, nil, nil, err
 	}
-	defer client.Close()
 
 	// Get validator information
 	validatorInstance, err := contracts.NewValidators(common.HexToAddress(ValidatorContractAddr), client)
